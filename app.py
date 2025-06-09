@@ -114,7 +114,7 @@ def analyze_and_plot(df, start_date, end_date):
         plot_line(df_filtered["terminal_date"], df_filtered["VPD"],
                   "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple")
         plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"],
-                       "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移（重ね描き）", pdf)
+                       "temp (°C)", "hum (%)", "温度と湿度の時間推移）", pdf)
 
     st.success("📄 PDFファイルを保存しました：`output_analysis.pdf`")
     with open(pdf_path, "rb") as f:
@@ -128,7 +128,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     if "terminal_date" not in df.columns:
-        st.error("❌ terminal_date列が見つかりません。")
+        st.error("terminal_date列が見つかりません。")
     else:
         df["terminal_date"] = pd.to_datetime(df["terminal_date"])
         min_date = df["terminal_date"].min().date()
@@ -138,7 +138,7 @@ if uploaded_file is not None:
         end_date = st.date_input("📅 終了日", value=max_date, min_value=min_date, max_value=max_date)
 
         if start_date > end_date:
-            st.error("❌ 開始日は終了日より前にしてください。")
+            st.error("開始日は終了日より前にしてください。")
         else:
-            if st.button("🚀 分析開始！"):
+            if st.button("分析開始！"):
                 analyze_and_plot(df, pd.to_datetime(start_date), pd.to_datetime(end_date))
