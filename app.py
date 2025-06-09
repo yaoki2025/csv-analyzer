@@ -14,19 +14,12 @@ jp_font = None
 
 def set_japanese_font():
     global jp_font
-    system = platform.system()
-    if system == "Darwin":
-        font_path = "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc"
-    elif system == "Windows":
-        font_path = "C:/Windows/Fonts/msgothic.ttc"
-    else:
-        font_path = "/usr/share/fonts/truetype/ipaexg/ipaexg.ttf"
-
+    font_path = os.path.join(os.path.dirname(__file__), "ipaexg.ttf")
     if os.path.exists(font_path):
         jp_font = fm.FontProperties(fname=font_path)
         plt.rcParams["font.family"] = jp_font.get_name()
     else:
-        st.warning("日本語フォントが見つかりません。PDF出力で文字化けする可能性があります。")
+        st.warning("⚠️ 日本語フォントが見つかりません。PDF出力で文字化けするかも。")
 
 set_japanese_font()
 
