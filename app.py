@@ -125,7 +125,7 @@ def analyze_and_plot(df, start_date, end_date):
         # 温度が理想範囲外だった時間数
         low, high = IDEAL_RANGES["temperature"]
         out_of_range_hours = df_filtered[(df_filtered["temperature"] < low) | (df_filtered["temperature"] > high)].shape[0]
-        st.info(f"\u26a0\ufe0f 温度が理想範囲を外れた時間数: {out_of_range_hours} 時間")
+        st.info(f"温度が理想範囲を外れた時間数: {out_of_range_hours} 時間")
 
     # 統計情報
     columns_to_describe = [col for col in IDEAL_RANGES.keys() if col in df_filtered.columns]
@@ -186,8 +186,8 @@ if uploaded_file is not None:
         min_date = df["terminal_date"].min().date()
         max_date = df["terminal_date"].max().date()
 
-        start_date = st.date_input("\ud83d\uddd3\ufe0f 開始日", value=min_date, min_value=min_date, max_value=max_date)
-        end_date = st.date_input("\ud83d\uddd3\ufe0f 終了日", value=max_date, min_value=min_date, max_value=max_date)
+        start_date = st.date_input("開始日", value=min_date, min_value=min_date, max_value=max_date)
+        end_date = st.date_input("終了日", value=max_date, min_value=min_date, max_value=max_date)
 
         if start_date > end_date:
             st.error("開始日は終了日より前にしてください。")
