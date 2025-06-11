@@ -150,7 +150,7 @@ def analyze_and_plot(df, start_date, end_date):
             plot_line(df_filtered["terminal_date"], df_filtered["temperature"], "温度の時間推移", "時刻", "温度 (°C)", pdf, color="red", ideal_range=IDEAL_RANGES["temperature"])
             plot_line(df_filtered["terminal_date"], df_filtered["humidity"], "湿度の時間推移", "時刻", "湿度 (%)", pdf, color="green", ideal_range=IDEAL_RANGES["humidity"])
             plot_scatter(df_filtered["temperature"], df_filtered["humidity"], "温度 vs 湿度", "温度 (°C)", "湿度 (%)", pdf)
-            plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"], "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移", pdf)
+            plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"], "temp (°C)", "hum (%)", "温度と湿度の時間推移", pdf)
         if "VPD" in df_filtered:
             plot_line(df_filtered["terminal_date"], df_filtered["VPD"], "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple", ideal_range=IDEAL_RANGES["VPD"])
         if "underground_temperature" in df_filtered:
