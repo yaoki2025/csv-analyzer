@@ -23,7 +23,6 @@ def set_japanese_font():
 
 set_japanese_font()
 
-# ===== 図をPDFへ画像として保存 =====
 def save_fig_as_image_to_pdf(fig, pdf):
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
@@ -36,7 +35,6 @@ def save_fig_as_image_to_pdf(fig, pdf):
     plt.close(fig_img)
     buf.close()
 
-# ===== 折れ線グラフ =====
 def plot_line(x, y, title, xlabel, ylabel, pdf, color="blue", linewidth=0.8):
     fig, ax = plt.subplots()
     ax.plot(x, y, color=color, linewidth=linewidth, label="data")
@@ -49,7 +47,6 @@ def plot_line(x, y, title, xlabel, ylabel, pdf, color="blue", linewidth=0.8):
     save_fig_as_image_to_pdf(fig, pdf)
     plt.close(fig)
 
-# ===== 散布図 =====
 def plot_scatter(x, y, title, xlabel, ylabel, pdf):
     fig, ax = plt.subplots()
     ax.scatter(x, y, alpha=0.5, label="scatter")
@@ -62,7 +59,6 @@ def plot_scatter(x, y, title, xlabel, ylabel, pdf):
     save_fig_as_image_to_pdf(fig, pdf)
     plt.close(fig)
 
-# ===== 2軸グラフ（温度と湿度） =====
 def plot_dual_line(x, y1, y2, label1, label2, title, pdf):
     fig, ax1 = plt.subplots()
     ax1.plot(x, y1, color="red", label=label1, linewidth=0.8)
@@ -86,7 +82,6 @@ def plot_dual_line(x, y1, y2, label1, label2, title, pdf):
     save_fig_as_image_to_pdf(fig, pdf)
     plt.close(fig)
 
-# ===== メイン処理 =====
 def analyze_and_plot(df, start_date, end_date):
     df["terminal_date"] = pd.to_datetime(df["terminal_date"])
     df_filtered = df[(df["terminal_date"] >= start_date) & (df["terminal_date"] <= end_date)].copy()
@@ -95,46 +90,46 @@ def analyze_and_plot(df, start_date, end_date):
         st.warning("指定期間にデータがありませんでした。")
         return
 
-    # VPD計算（欠損値無視）
     df_filtered["VPD"] = 0.6108 * np.exp((17.27 * df_filtered["temperature"]) / (df_filtered["temperature"] + 237.3))
     df_filtered["VPD"] -= df_filtered["VPD"] * df_filtered["humidity"] / 100
 
-    stats = df_filtered[["temperature", "humidity", "co2", "rainfall", "VPD"]].describe().loc[["mean", "max", "min", "std"]]
+    # 統計計算の対象列を柔軟に対応（存在する列のみ）
+    columns_to_describe = [col for col in ["temperature", "humidity", "co2", "rainfall", "VPD",
+                                           "underground_temperature", "underground_water_content"]
+                           if col in df_filtered.columns]
+
+    stats = df_filtered[columns_to_describe].describe().loc[["mean", "max", "min", "std"]]
     st.subheader("統計情報")
     st.dataframe(stats.round(2))
 
     pdf_path = "output_analysis.pdf"
     with PdfPages(pdf_path) as pdf:
-        plot_line(df_filtered["terminal_date"], df_filtered["temperature"],
-                  "温度の時間推移", "時刻", "温度 (°C)", pdf)
-        plot_line(df_filtered["terminal_date"], df_filtered["humidity"],
-                  "湿度の時間推移", "時刻", "湿度 (%)", pdf, color="green")
-        plot_scatter(df_filtered["temperature"], df_filtered["humidity"],
-                     "温度 vs 湿度", "温度 (°C)", "湿度 (%)", pdf)
-        plot_line(df_filtered["terminal_date"], df_filtered["VPD"],
-                  "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple")
-        plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"],
-                       "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移", pdf)
+        if "temperature" in df_filtered and "humidity" in df_filtered:
+            plot_line(df_filtered["terminal_date"], df_filtered["temperature"],
+                      "温度の時間推移", "時刻", "温度 (°C)", pdf)
+            plot_line(df_filtered["terminal_date"], df_filtered["humidity"],
+                      "湿度の時間推移", "時刻", "湿度 (%)", pdf, color="green")
+            plot_scatter(df_filtered["temperature"], df_filtered["humidity"],
+                         "温度 vs 湿度", "温度 (°C)", "湿度 (%)", pdf)
+            plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"],
+                           "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移", pdf)
 
-        # 地中温度（欠損がある場合は無視）
-        if "underground_temperature" in df_filtered.columns:
-            df_ut = df_filtered[["terminal_date", "underground_temperature"]].dropna()
-            if not df_ut.empty:
-                plot_line(df_ut["terminal_date"], df_ut["underground_temperature"],
-                          "地中温度の時間推移", "時刻", "地中温度 (°C)", pdf, color="orange")
+        if "VPD" in df_filtered:
+            plot_line(df_filtered["terminal_date"], df_filtered["VPD"],
+                      "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple")
 
-        # 地中水分（欠損がある場合は無視）
-        if "underground_water_content" in df_filtered.columns:
-            df_uw = df_filtered[["terminal_date", "underground_water_content"]].dropna()
-            if not df_uw.empty:
-                plot_line(df_uw["terminal_date"], df_uw["underground_water_content"],
-                          "地中水分の時間推移", "時刻", "地中水分 (%)", pdf, color="brown")
+        if "underground_temperature" in df_filtered:
+            plot_line(df_filtered["terminal_date"], df_filtered["underground_temperature"],
+                      "土壌温度の時間推移", "時刻", "土壌温度 (°C)", pdf, color="orange")
+
+        if "underground_water_content" in df_filtered:
+            plot_line(df_filtered["terminal_date"], df_filtered["underground_water_content"],
+                      "土壌水分の時間推移", "時刻", "土壌水分 (%)", pdf, color="brown")
 
     st.success("📄 PDFファイルを保存しました：`output_analysis.pdf`")
     with open(pdf_path, "rb") as f:
         st.download_button("📥 PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
 
-# ===== Streamlit UI =====
 st.title("📈 CSVデータ分析ツール")
 
 uploaded_file = st.file_uploader("CSVファイルを選んでください", type="csv")
@@ -142,7 +137,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     if "terminal_date" not in df.columns:
-        st.error("terminal_date列が見つかりません。")
+        st.error("❌ terminal_date列が見つかりません。CSVを確認してください。")
     else:
         df["terminal_date"] = pd.to_datetime(df["terminal_date"])
         min_date = df["terminal_date"].min().date()
@@ -152,7 +147,7 @@ if uploaded_file is not None:
         end_date = st.date_input("📅 終了日", value=max_date, min_value=min_date, max_value=max_date)
 
         if start_date > end_date:
-            st.error("開始日は終了日より前にしてください。")
+            st.error("❌ 開始日は終了日より前にしてください。")
         else:
             if st.button("分析開始！"):
                 analyze_and_plot(df, pd.to_datetime(start_date), pd.to_datetime(end_date))
