@@ -19,7 +19,7 @@ def set_japanese_font():
         jp_font = fm.FontProperties(fname=font_path)
         plt.rcParams["font.family"] = jp_font.get_name()
     else:
-        st.warning("⚠️ 日本語フォントが見つかりません。PDF出力で文字化けするかも。")
+        st.warning("\u26a0\ufe0f 日本語フォントが見つかりません。PDF出力で文字化けするかも。")
 
 set_japanese_font()
 
@@ -112,14 +112,29 @@ def analyze_and_plot(df, start_date, end_date):
     df_filtered["VPD"] = 0.6108 * np.exp((17.27 * df_filtered["temperature"]) / (df_filtered["temperature"] + 237.3))
     df_filtered["VPD"] -= df_filtered["VPD"] * df_filtered["humidity"] / 100
 
+    # === 追加分析 ===
+    if "temperature" in df_filtered and "underground_temperature" in df_filtered:
+        df_filtered["temp_diff"] = df_filtered["temperature"] - df_filtered["underground_temperature"]
+
+    if "underground_water_content" in df_filtered:
+        df_filtered["soil_moisture_change"] = df_filtered["underground_water_content"].diff()
+
+    if "temperature" in df_filtered:
+        df_filtered["temperature_ma3"] = df_filtered["temperature"].rolling(window=3, min_periods=1).mean()
+
+        # 温度が理想範囲外だった時間数
+        low, high = IDEAL_RANGES["temperature"]
+        out_of_range_hours = df_filtered[(df_filtered["temperature"] < low) | (df_filtered["temperature"] > high)].shape[0]
+        st.info(f"\u26a0\ufe0f 温度が理想範囲を外れた時間数: {out_of_range_hours} 時間")
+
     # 統計情報
     columns_to_describe = [col for col in IDEAL_RANGES.keys() if col in df_filtered.columns]
     stats = df_filtered[columns_to_describe].describe().loc[["mean", "max", "min", "std"]]
-    st.subheader("📊 統計情報")
+    st.subheader("\ud83d\udcca 統計情報")
     st.dataframe(stats.round(2))
 
-    # 理想範囲に入っている割合を計算
-    st.subheader("✅ 理想範囲に入っているデータの割合")
+    # 理想範囲に入っている割合
+    st.subheader("\u2705 理想範囲に入っているデータの割合")
     col1, col2 = st.columns(2)
     for i, col in enumerate(columns_to_describe):
         low, high = IDEAL_RANGES[col]
@@ -153,29 +168,29 @@ def analyze_and_plot(df, start_date, end_date):
             plot_line(df_filtered["terminal_date"], df_filtered["underground_water_content"],
                       "土壌水分の時間推移", "時刻", "土壌水分 (%)", pdf, color="brown", ideal_range=IDEAL_RANGES["underground_water_content"])
 
-    st.success("📄 PDFファイルを保存しました：`output_analysis.pdf`")
+    st.success("\ud83d\udcc4 PDFファイルを保存しました：`output_analysis.pdf`")
     with open(pdf_path, "rb") as f:
-        st.download_button("📥 PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
+        st.download_button("\ud83d\udcc5 PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
 
 # ===== Streamlit UI =====
-st.title("🍅 栽培環境 CSVデータ分析ツール")
+st.title("\ud83c\udf45 栽培環境 CSVデータ分析ツール")
 
 uploaded_file = st.file_uploader("CSVファイルを選んでください", type="csv")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     if "terminal_date" not in df.columns:
-        st.error("❌ terminal_date列が見つかりません。CSVを確認してください。")
+        st.error("\u274c terminal_date列が見つかりません。CSVを確認してください。")
     else:
         df["terminal_date"] = pd.to_datetime(df["terminal_date"])
         min_date = df["terminal_date"].min().date()
         max_date = df["terminal_date"].max().date()
 
-        start_date = st.date_input("📅 開始日", value=min_date, min_value=min_date, max_value=max_date)
-        end_date = st.date_input("📅 終了日", value=max_date, min_value=min_date, max_value=max_date)
+        start_date = st.date_input("\ud83d\uddd3\ufe0f 開始日", value=min_date, min_value=min_date, max_value=max_date)
+        end_date = st.date_input("\ud83d\uddd3\ufe0f 終了日", value=max_date, min_value=min_date, max_value=max_date)
 
         if start_date > end_date:
-            st.error("❌ 開始日は終了日より前にしてください。")
+            st.error("\u274c 開始日は終了日より前にしてください。")
         else:
             if st.button("分析開始！"):
                 analyze_and_plot(df, pd.to_datetime(start_date), pd.to_datetime(end_date))
