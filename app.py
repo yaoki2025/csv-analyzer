@@ -112,7 +112,7 @@ def analyze_and_plot(df, start_date, end_date):
             plot_scatter(df_filtered["temperature"], df_filtered["humidity"],
                          "温度 vs 湿度", "温度 (°C)", "湿度 (%)", pdf)
             plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"],
-                           "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移", pdf)
+                           "temp (°C)", "hum (%)", "温度と湿度の時間推移", pdf)
 
         if "VPD" in df_filtered:
             plot_line(df_filtered["terminal_date"], df_filtered["VPD"],
