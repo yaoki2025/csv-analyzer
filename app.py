@@ -180,7 +180,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     if "terminal_date" not in df.columns:
-        st.error("\u274c terminal_date列が見つかりません。CSVを確認してください。")
+        st.error("terminal_date列が見つかりません。CSVを確認してください。")
     else:
         df["terminal_date"] = pd.to_datetime(df["terminal_date"])
         min_date = df["terminal_date"].min().date()
@@ -190,7 +190,7 @@ if uploaded_file is not None:
         end_date = st.date_input("\ud83d\uddd3\ufe0f 終了日", value=max_date, min_value=min_date, max_value=max_date)
 
         if start_date > end_date:
-            st.error("\u274c 開始日は終了日より前にしてください。")
+            st.error("開始日は終了日より前にしてください。")
         else:
             if st.button("分析開始！"):
                 analyze_and_plot(df, pd.to_datetime(start_date), pd.to_datetime(end_date))
