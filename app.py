@@ -10,7 +10,6 @@ from PIL import Image
 
 # ===== フォント設定 =====
 jp_font = None
-
 def set_japanese_font():
     global jp_font
     font_path = os.path.join(os.path.dirname(__file__), "ipaexg.ttf")
@@ -19,7 +18,6 @@ def set_japanese_font():
         plt.rcParams["font.family"] = jp_font.get_name()
     else:
         st.warning("日本語フォントが見つかりません。PDF出力で文字化けする可能性があります。")
-
 set_japanese_font()
 
 # ===== ユーザー入力で理想範囲を定義 =====
@@ -95,6 +93,8 @@ def analyze_and_plot(df, start_date, end_date):
         st.warning("指定期間にデータがありません。")
         return
 
+    df.set_index("terminal_date", inplace=True)
+
     df["VPD"] = 0.6108 * np.exp((17.27 * df["temperature"]) / (df["temperature"] + 237.3))
     df["VPD"] -= df["VPD"] * df["humidity"] / 100
     df["temp_diff"] = df["temperature"] - df["underground_temperature"]
@@ -105,7 +105,10 @@ def analyze_and_plot(df, start_date, end_date):
     threshold = IDEAL_RANGES["underground_water_content"][0]
     df["dry_count"] = (df["underground_water_content"] < threshold).astype(int)
     df["dry_streak"] = df["dry_count"].groupby((df["dry_count"] != df["dry_count"].shift()).cumsum()).cumsum()
-    df["soil_temp_range"] = df["underground_temperature"].rolling("1D", on="terminal_date").apply(lambda x: x.max() - x.min())
+    
+    soil_temp_range = df["underground_temperature"].resample("1D").max() - df["underground_temperature"].resample("1D").min()
+    soil_temp_range = soil_temp_range.dropna()
+
     df["all_ok"] = True
     for col, (low, high) in IDEAL_RANGES.items():
         df["all_ok"] &= (df[col] >= low) & (df[col] <= high)
@@ -129,16 +132,19 @@ def analyze_and_plot(df, start_date, end_date):
     st.metric("全項目が理想範囲内の割合", f"{percent} %")
 
     with PdfPages("output_analysis.pdf") as pdf:
-        plot_line(df["terminal_date"], df["temp_diff"], "温度と地温の乖離", "時刻", "気温 - 地温 (°C)", pdf, color="red")
-        plot_line(df["terminal_date"], df["temp_sum"], "気温と地温の合計", "時刻", "気温 + 地温 (°C)", pdf, color="purple")
-        plot_line(df["terminal_date"], df["soil_moisture_diff_abs"], "潅水後の保水持続性（絶対変化量）", "時刻", "水分変化 (%)", pdf, color="brown")
-        plot_line(df["terminal_date"], df["soil_moisture_1st_deriv"], "水分減少速度（一次微分）", "時刻", "水分微分値", pdf, color="blue")
-        plot_line(df["terminal_date"], df["dry_streak"], "連続乾燥時間カウント", "時刻", "連続乾燥時間 (回)", pdf, color="orange")
-        plot_line(df["terminal_date"], df["soil_temp_range"], "地温の日内変動幅", "時刻", "日内変動幅 (°C)", pdf, color="green")
+        plot_line(df.index, df["temp_diff"], "温度と地温の乖離", "時刻", "気温 - 地温 (°C)", pdf, color="red")
+        plot_line(df.index, df["temp_sum"], "気温と地温の合計", "時刻", "気温 + 地温 (°C)", pdf, color="purple")
+        plot_line(df.index, df["soil_moisture_diff_abs"], "潅水後の保水持続性（絶対変化量）", "時刻", "水分変化 (%)", pdf, color="brown")
+        plot_line(df.index, df["soil_moisture_1st_deriv"], "水分減少速度（一次微分）", "時刻", "水分微分値", pdf, color="blue")
+        plot_line(df.index, df["dry_streak"], "連続乾燥時間カウント", "時刻", "連続乾燥時間 (回)", pdf, color="orange")
+        plot_line(soil_temp_range.index, soil_temp_range, "地温の日内変動幅", "日付", "変動幅 (°C)", pdf, color="green")
+
         for col in IDEAL_RANGES:
-            plot_line(df["terminal_date"], df[col], f"{col} の時間推移", "時刻", col, pdf, color="gray", ideal_range=IDEAL_RANGES[col])
+            plot_line(df.index, df[col], f"{col} の時間推移", "時刻", col, pdf, color="gray", ideal_range=IDEAL_RANGES[col])
+
         plot_scatter(df["temperature"], df["humidity"], "温度 vs 湿度", "温度", "湿度", pdf)
         plot_scatter(df["underground_water_content"], df["underground_temperature"], "土壌水分 vs 地温", "水分", "地温", pdf)
+
         for x, y in [("temperature", "humidity"), ("underground_water_content", "underground_temperature")]:
             corr = df[[x, y]].corr().iloc[0, 1].round(3)
             st.write(f"{x} と {y} の相関係数: {corr}")
@@ -148,7 +154,7 @@ def analyze_and_plot(df, start_date, end_date):
         st.download_button("PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
 
 # ===== Streamlit UI =====
-st.title("CSVデータ分析ツールv1.1")
+st.title("CSVデータ分析ツール v1.1")
 
 uploaded_file = st.file_uploader("CSVファイルを選んでください", type="csv")
 if uploaded_file is not None:
