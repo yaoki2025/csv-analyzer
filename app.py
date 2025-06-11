@@ -173,7 +173,7 @@ def analyze_and_plot(df, start_date, end_date):
         st.download_button("PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
 
 # ===== Streamlit UI =====
-st.title("栽培環境 CSVデータ分析ツール")
+st.title("CSVデータ分析ツール")
 
 uploaded_file = st.file_uploader("CSVファイルを選んでください", type="csv")
 if uploaded_file is not None:
