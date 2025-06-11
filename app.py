@@ -65,7 +65,6 @@ def plot_scatter(x, y, title, xlabel, ylabel, pdf):
 # ===== 2軸グラフ（温度と湿度） =====
 def plot_dual_line(x, y1, y2, label1, label2, title, pdf):
     fig, ax1 = plt.subplots()
-
     ax1.plot(x, y1, color="red", label=label1, linewidth=0.8)
     ax1.set_xlabel("時刻", fontproperties=jp_font)
     ax1.set_ylabel(label1, color="red", fontproperties=jp_font)
@@ -96,6 +95,7 @@ def analyze_and_plot(df, start_date, end_date):
         st.warning("指定期間にデータがありませんでした。")
         return
 
+    # VPD計算（欠損値無視）
     df_filtered["VPD"] = 0.6108 * np.exp((17.27 * df_filtered["temperature"]) / (df_filtered["temperature"] + 237.3))
     df_filtered["VPD"] -= df_filtered["VPD"] * df_filtered["humidity"] / 100
 
@@ -114,7 +114,21 @@ def analyze_and_plot(df, start_date, end_date):
         plot_line(df_filtered["terminal_date"], df_filtered["VPD"],
                   "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple")
         plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"],
-                       "temp (°C)", "hum (%)", "温度と湿度の時間推移）", pdf)
+                       "温度 (°C)", "湿度 (%)", "温度と湿度の時間推移", pdf)
+
+        # 地中温度（欠損がある場合は無視）
+        if "underground_temperature" in df_filtered.columns:
+            df_ut = df_filtered[["terminal_date", "underground_temperature"]].dropna()
+            if not df_ut.empty:
+                plot_line(df_ut["terminal_date"], df_ut["underground_temperature"],
+                          "地中温度の時間推移", "時刻", "地中温度 (°C)", pdf, color="orange")
+
+        # 地中水分（欠損がある場合は無視）
+        if "underground_water_content" in df_filtered.columns:
+            df_uw = df_filtered[["terminal_date", "underground_water_content"]].dropna()
+            if not df_uw.empty:
+                plot_line(df_uw["terminal_date"], df_uw["underground_water_content"],
+                          "地中水分の時間推移", "時刻", "地中水分 (%)", pdf, color="brown")
 
     st.success("📄 PDFファイルを保存しました：`output_analysis.pdf`")
     with open(pdf_path, "rb") as f:
