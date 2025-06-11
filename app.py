@@ -1,5 +1,3 @@
-# app.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -49,7 +47,7 @@ IDEAL_RANGES = {
     )
 }
 
-# ===== 図をPDFへ画像として保存 =====
+# ===== PDF保存用関数 =====
 def save_fig_as_image_to_pdf(fig, pdf):
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
@@ -62,7 +60,7 @@ def save_fig_as_image_to_pdf(fig, pdf):
     plt.close(fig_img)
     buf.close()
 
-# ===== グラフ描画関数 =====
+# ===== 共通描画関数 =====
 def plot_line(x, y, title, xlabel, ylabel, pdf, color="blue", linewidth=0.8, ideal_range=None):
     fig, ax = plt.subplots()
     ax.plot(x, y, color=color, linewidth=linewidth, label="data")
@@ -89,81 +87,68 @@ def plot_scatter(x, y, title, xlabel, ylabel, pdf):
     save_fig_as_image_to_pdf(fig, pdf)
     plt.close(fig)
 
-def plot_dual_line(x, y1, y2, label1, label2, title, pdf):
-    fig, ax1 = plt.subplots()
-    ax1.plot(x, y1, color="red", label=label1, linewidth=0.8)
-    ax1.set_xlabel("時刻", fontproperties=jp_font)
-    ax1.set_ylabel(label1, color="red", fontproperties=jp_font)
-    ax1.tick_params(axis='y', labelcolor="red")
-
-    ax2 = ax1.twinx()
-    ax2.plot(x, y2, color="green", label=label2, linewidth=0.8)
-    ax2.set_ylabel(label2, color="green", fontproperties=jp_font)
-    ax2.tick_params(axis='y', labelcolor="green")
-
-    fig.suptitle(title, fontproperties=jp_font)
-    plt.setp(ax1.get_xticklabels(), rotation=90)
-
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
-
-    st.pyplot(fig)
-    save_fig_as_image_to_pdf(fig, pdf)
-    plt.close(fig)
-
 # ===== 分析処理 =====
 def analyze_and_plot(df, start_date, end_date):
     df["terminal_date"] = pd.to_datetime(df["terminal_date"])
-    df_filtered = df[(df["terminal_date"] >= start_date) & (df["terminal_date"] <= end_date)].copy()
-    if df_filtered.empty:
-        st.warning("指定期間にデータがありませんでした。")
+    df = df[(df["terminal_date"] >= start_date) & (df["terminal_date"] <= end_date)].copy()
+    if df.empty:
+        st.warning("指定期間にデータがありません。")
         return
 
-    df_filtered["VPD"] = 0.6108 * np.exp((17.27 * df_filtered["temperature"]) / (df_filtered["temperature"] + 237.3))
-    df_filtered["VPD"] -= df_filtered["VPD"] * df_filtered["humidity"] / 100
-
-    if "temperature" in df_filtered and "underground_temperature" in df_filtered:
-        df_filtered["temp_diff"] = df_filtered["temperature"] - df_filtered["underground_temperature"]
-    if "underground_water_content" in df_filtered:
-        df_filtered["soil_moisture_change"] = df_filtered["underground_water_content"].diff()
-    if "temperature" in df_filtered:
-        df_filtered["temperature_ma3"] = df_filtered["temperature"].rolling(window=3, min_periods=1).mean()
+    df["VPD"] = 0.6108 * np.exp((17.27 * df["temperature"]) / (df["temperature"] + 237.3))
+    df["VPD"] -= df["VPD"] * df["humidity"] / 100
+    df["temp_diff"] = df["temperature"] - df["underground_temperature"]
+    df["temp_sum"] = df["temperature"] + df["underground_temperature"]
+    df["soil_moisture_diff"] = df["underground_water_content"].diff()
+    df["soil_moisture_diff_abs"] = df["soil_moisture_diff"].abs()
+    df["soil_moisture_1st_deriv"] = df["underground_water_content"].diff()
+    threshold = IDEAL_RANGES["underground_water_content"][0]
+    df["dry_count"] = (df["underground_water_content"] < threshold).astype(int)
+    df["dry_streak"] = df["dry_count"].groupby((df["dry_count"] != df["dry_count"].shift()).cumsum()).cumsum()
+    df["soil_temp_range"] = df["underground_temperature"].rolling("1D", on="terminal_date").apply(lambda x: x.max() - x.min())
+    df["all_ok"] = True
+    for col, (low, high) in IDEAL_RANGES.items():
+        df["all_ok"] &= (df[col] >= low) & (df[col] <= high)
 
     st.subheader("統計情報")
-    columns_to_describe = [col for col in IDEAL_RANGES.keys() if col in df_filtered.columns]
-    stats = df_filtered[columns_to_describe].describe().loc[["mean", "max", "min", "std"]]
+    cols = list(IDEAL_RANGES.keys())
+    stats = df[cols].describe().loc[["mean", "max", "min", "std"]]
     st.dataframe(stats.round(2))
 
-    st.subheader("理想範囲に入っているデータの割合")
+    st.subheader("理想範囲に入っている割合")
     col1, col2 = st.columns(2)
-    for i, col in enumerate(columns_to_describe):
+    for i, col in enumerate(cols):
         low, high = IDEAL_RANGES[col]
-        total = df_filtered[col].notnull().sum()
-        in_range = df_filtered[(df_filtered[col] >= low) & (df_filtered[col] <= high)][col].count()
+        total = df[col].notnull().sum()
+        in_range = df[(df[col] >= low) & (df[col] <= high)][col].count()
         percent = round(in_range / total * 100, 1) if total else 0
         (col1 if i % 2 == 0 else col2).metric(label=col, value=f"{percent} %")
 
-    pdf_path = "output_analysis.pdf"
-    with PdfPages(pdf_path) as pdf:
-        if "temperature" in df_filtered and "humidity" in df_filtered:
-            plot_line(df_filtered["terminal_date"], df_filtered["temperature"], "温度の時間推移", "時刻", "温度 (°C)", pdf, color="red", ideal_range=IDEAL_RANGES["temperature"])
-            plot_line(df_filtered["terminal_date"], df_filtered["humidity"], "湿度の時間推移", "時刻", "湿度 (%)", pdf, color="green", ideal_range=IDEAL_RANGES["humidity"])
-            plot_scatter(df_filtered["temperature"], df_filtered["humidity"], "温度 vs 湿度", "温度 (°C)", "湿度 (%)", pdf)
-            plot_dual_line(df_filtered["terminal_date"], df_filtered["temperature"], df_filtered["humidity"], "temp (°C)", "hum (%)", "温度と湿度の時間推移", pdf)
-        if "VPD" in df_filtered:
-            plot_line(df_filtered["terminal_date"], df_filtered["VPD"], "飽差 (VPD) の時間推移", "時刻", "VPD (kPa)", pdf, color="purple", ideal_range=IDEAL_RANGES["VPD"])
-        if "underground_temperature" in df_filtered:
-            plot_line(df_filtered["terminal_date"], df_filtered["underground_temperature"], "土壌温度の時間推移", "時刻", "土壌温度 (°C)", pdf, color="orange", ideal_range=IDEAL_RANGES["underground_temperature"])
-        if "underground_water_content" in df_filtered:
-            plot_line(df_filtered["terminal_date"], df_filtered["underground_water_content"], "土壌水分の時間推移", "時刻", "土壌水分 (%)", pdf, color="brown", ideal_range=IDEAL_RANGES["underground_water_content"])
+    st.subheader("総合スコア")
+    percent = round(df["all_ok"].sum() / len(df) * 100, 1)
+    st.metric("全項目が理想範囲内の割合", f"{percent} %")
 
-    st.success("PDFファイルを保存しました：`output_analysis.pdf`")
-    with open(pdf_path, "rb") as f:
+    with PdfPages("output_analysis.pdf") as pdf:
+        plot_line(df["terminal_date"], df["temp_diff"], "温度と地温の乖離", "時刻", "気温 - 地温 (°C)", pdf, color="red")
+        plot_line(df["terminal_date"], df["temp_sum"], "気温と地温の合計", "時刻", "気温 + 地温 (°C)", pdf, color="purple")
+        plot_line(df["terminal_date"], df["soil_moisture_diff_abs"], "潅水後の保水持続性（絶対変化量）", "時刻", "水分変化 (%)", pdf, color="brown")
+        plot_line(df["terminal_date"], df["soil_moisture_1st_deriv"], "水分減少速度（一次微分）", "時刻", "水分微分値", pdf, color="blue")
+        plot_line(df["terminal_date"], df["dry_streak"], "連続乾燥時間カウント", "時刻", "連続乾燥時間 (回)", pdf, color="orange")
+        plot_line(df["terminal_date"], df["soil_temp_range"], "地温の日内変動幅", "時刻", "日内変動幅 (°C)", pdf, color="green")
+        for col in IDEAL_RANGES:
+            plot_line(df["terminal_date"], df[col], f"{col} の時間推移", "時刻", col, pdf, color="gray", ideal_range=IDEAL_RANGES[col])
+        plot_scatter(df["temperature"], df["humidity"], "温度 vs 湿度", "温度", "湿度", pdf)
+        plot_scatter(df["underground_water_content"], df["underground_temperature"], "土壌水分 vs 地温", "水分", "地温", pdf)
+        for x, y in [("temperature", "humidity"), ("underground_water_content", "underground_temperature")]:
+            corr = df[[x, y]].corr().iloc[0, 1].round(3)
+            st.write(f"{x} と {y} の相関係数: {corr}")
+
+    st.success("PDFファイルを保存しました: output_analysis.pdf")
+    with open("output_analysis.pdf", "rb") as f:
         st.download_button("PDFをダウンロード", f, file_name="output_analysis.pdf", mime="application/pdf")
 
 # ===== Streamlit UI =====
-st.title("CSVデータ分析ツールv1.0")
+st.title("CSVデータ分析ツールv1.1")
 
 uploaded_file = st.file_uploader("CSVファイルを選んでください", type="csv")
 if uploaded_file is not None:
